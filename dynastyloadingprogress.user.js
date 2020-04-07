@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dynasty Loading Progress
 // @namespace    github.com/luejerry
-// @version      0.2
+// @version      0.2.1
 // @description  Adds a progress bar to page loading indicators on Dynasty.
 // @author       cyricc
 // @include      https://dynasty-scans.com/chapters/*
@@ -85,7 +85,7 @@
    */
   function handleImageLoad(src) {
     const currentPage = document.getElementsByClassName('active')[0].innerText;
-    if (src.match(`${currentPage}\\.[A-Za-z]+`)) {
+    if (src.match(`${encodeURIComponent(currentPage)}\\.[A-Za-z]+`)) {
       asyncFetchImageProgress(src);
     }
   }
