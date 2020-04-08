@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dynasty Loading Progress
 // @namespace    github.com/luejerry
-// @version      0.2.1
+// @version      0.2.2
 // @description  Adds a progress bar to page loading indicators on Dynasty.
 // @author       cyricc
 // @include      https://dynasty-scans.com/chapters/*
@@ -38,10 +38,14 @@
     const imageCons = window.Image;
     window.Image = function(...args) {
       const image = new imageCons(...args);
-      image.addEventListener('loadstart', event => {
-        const imgSrc = event.target.src;
-        handler(imgSrc);
-      });
+      // Workaround for Chrome bug not dispatching 'loadstart' for image elements:
+      // https://bugs.chromium.org/p/chromium/issues/detail?id=458851
+      setTimeout(() => handler(image.src), 0);
+      // Correct implementation here
+      // image.addEventListener('loadstart', event => {
+      //   const imgSrc = event.target.src;
+      //   handler(imgSrc);
+      // });
       return image;
     };
   }
@@ -84,6 +88,7 @@
    * @param {string} src URL of image.
    */
   function handleImageLoad(src) {
+    if (!src) return;
     const currentPage = document.getElementsByClassName('active')[0].innerText;
     if (src.match(`${encodeURIComponent(currentPage)}\\.[A-Za-z]+`)) {
       asyncFetchImageProgress(src);
