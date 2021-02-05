@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dynasty Loading Progress
 // @namespace    github.com/luejerry
-// @version      0.2.2
+// @version      0.2.3
 // @description  Adds a progress bar to page loading indicators on Dynasty.
 // @author       cyricc
 // @include      https://dynasty-scans.com/chapters/*
@@ -10,13 +10,16 @@
 // @updateURL   https://github.com/luejerry/dynasty-loadingprogress/raw/master/dynastyloadingprogress.user.js
 // ==/UserScript==
 
-(function() {
+(function () {
   'use strict';
 
   // Incrementing counter that is used by loading listeners to hold exclusive access to the loading
   // bar. More recently created listeners immediately take the mutex, dropping the previous
   // listener even if it has not completed
   let switchMutex = 0;
+
+  // Task scheduler that throttles updates to the animation framerate
+  const animator = createAnimationDispatcher();
 
   // Add loading bar to Dynasty's native loading indicator
   const divLoading = document.getElementById('loading');
@@ -29,6 +32,34 @@
   });
 
   /**
+   * Creates a wrapper around `requestAnimationFrame` to enable a simpler task-based API for using
+   * it. The wrapper object defines an `addTask` function that can be invoked to schedule a task to
+   * run on the next animation frame. Description of `addTask` follows:
+   *
+   * Parameters
+   * - label {string} an identifier for the task. If more than one tasks with the same label are
+   *   scheduled in a single animation frame, only the most recently scheduled one will be executed.
+   * - task {function} Callback function to execute on the next animation frame. The task will only
+   *   run once, or not at all (if it is superceded by another task with the same label).
+   */
+  function createAnimationDispatcher() {
+    let tasks = {};
+    const loop = () => {
+      for (const [, task] of Object.entries(tasks)) {
+        task();
+      }
+      tasks = {};
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+    return {
+      addTask: (label, task) => {
+        tasks[label] = task;
+      },
+    };
+  }
+
+  /**
    * Hooks into all image elements created using `new Image()` to execute a supplied handler when
    * the image begins loading.
    * @param {(src: string) => any} handler Handler to call when an image begins loading. The URL of
@@ -36,7 +67,7 @@
    */
   function hookImageLoad(handler) {
     const imageCons = window.Image;
-    window.Image = function(...args) {
+    window.Image = function (...args) {
       const image = new imageCons(...args);
       // Workaround for Chrome bug not dispatching 'loadstart' for image elements:
       // https://bugs.chromium.org/p/chromium/issues/detail?id=458851
@@ -78,8 +109,10 @@
    * @param {number} fraction Fraction of image loaded.
    */
   function updateLoadingProgress(fraction) {
-    divLoadingProgress.style.width = `${Math.round(fraction * 100)}%`;
-    divLoadingProgress.style.opacity = 0 < fraction && fraction < 1 ? '1' : '0';
+    animator.addTask('loading', () => {
+      divLoadingProgress.style.width = `${Math.round(fraction * 100)}%`;
+      divLoadingProgress.style.opacity = 0 < fraction && fraction < 1 ? '1' : '0';
+    })
   }
 
   /**
